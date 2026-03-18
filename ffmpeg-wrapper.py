@@ -50,6 +50,16 @@ def select_file():
     root.destroy()
     return file_path
 
+def select_sub():
+    root = tk.Tk()
+    root.withdraw()
+    file_path = filedialog.askopenfilename(
+        title="Select Subtitle File",
+        filetypes=[("Subtitle Files", "*.srt *.ass *.vtt"), ("All Files", "*.*")]
+    )
+    root.destroy()
+    return file_path
+
 def get_metadata(file_path):
     cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', file_path]
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -118,7 +128,7 @@ def extract_track(input_file, metadata):
 def add_subtitle_track(video_file):
     print("\n--- SUBTITLE MUXING ENGINE ---")
     print("Please select the Subtitle file (.srt, .ass, etc.)")
-    sub_file = select_file()
+    sub_file = select_sub()
     
     if not sub_file:
         print("No subtitle file selected. Returning to menu.")
@@ -150,7 +160,7 @@ def add_subtitle_track(video_file):
         '-y', final_path
     ]
 
-    print(f"\n🚀 Muxing tracks into: {out_name}...")
+    print(f"\nMuxing tracks into: {out_name}...")
     try:
         subprocess.run(cmd, check=True)
         print(f"\n[SUCCESS] New track added! Saved to: {final_path}")
@@ -224,7 +234,7 @@ def remove_track(input_file, metadata):
         '-y', final_path
     ]
 
-    print(f"\n🚀 Removing Stream {idx} and saving to: {out_name}...")
+    print(f"\nRemoving Stream {idx} and saving to: {out_name}...")
     try:
         subprocess.run(cmd, check=True)
         print(f"\n[SUCCESS] Track removed! Saved to: {final_path}")
@@ -255,6 +265,7 @@ def run_conversion(input_file):
 def main():
     if not check_dependencies():
         print("CRITICAL ERROR: FFmpeg or FFprobe not found in system PATH.")
+        print("Please install FFmpeg and ensure it's added to your PATH environment variable.")
         return
 
     clear_screen()
@@ -286,9 +297,9 @@ Supported formats include MKV, MP4, AVI, MOV, MP3, WAV, and more.
         
         print(" [1] FULL CONVERSION (Change Format/Codecs)")
         print(" [2] STREAM EXTRACTION (Isolate Audio/Subs/Video)")
-        print(" [3] ADD SUBTITLE TRACK (Mux SRT into Video)")
+        print(" [3] ADD SUBTITLE TRACK (MUX SRT into Video)")
         print(" [4] CHANGE TITLE METADATA (No Re-encode)")
-        print(" [5] REMOVE TRACK (Delete Unwanted Audio/Subs)")
+        print(" [5] REMOVE TRACK (Delete Unwanted Audio/Subs Track)")
         print(" [Q] EXIT")
         
         mode = input("\nSELECT OPERATION: ").strip().lower()
