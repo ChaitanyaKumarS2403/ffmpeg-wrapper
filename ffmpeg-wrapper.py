@@ -175,6 +175,62 @@ def change_title(input_file, output_file, new_title):
     except subprocess.CalledProcessError as e:
         print(f"Error occurred: {e}")
 
+def remove_track(input_file, metadata):
+    clear_screen()
+    print("--- TRACK REMOVAL ENGINE ---")
+    streams = metadata.get('streams', [])
+    input_dir = os.path.dirname(input_file)
+
+    # 1. Display available tracks
+    for i, s in enumerate(streams):
+        codec = s.get('codec_name', 'unknown')
+        lang = s.get('tags', {}).get('language', 'und')
+        print(f" Stream {i:02d} | {s['codec_type'].upper():<10} | {codec:<10} | {lang}")
+
+    print("\n [B] Back to Menu")
+    choice = input("\nEnter Stream Index to REMOVE (or 'B'): ").strip().upper()
+    
+    if choice == 'B': return
+
+    try:
+        idx = int(choice)
+        if idx < 0 or idx >= len(streams):
+            raise IndexError
+    except (ValueError, IndexError):
+        print("Error: Invalid stream index.")
+        input("Press Enter to continue...")
+        return
+
+    # 2. Setup Output Path
+    original_ext = os.path.splitext(input_file)[1]
+    out_name = input(f"Enter output name (Default: cleaned_file{original_ext}): ").strip()
+    if not out_name:
+        out_name = f"cleaned_file{original_ext}"
+    if not out_name.lower().endswith(original_ext):
+        out_name += original_ext
+
+    final_path = os.path.join(input_dir, out_name)
+
+    # 3. Construct Command
+    # -map 0      : Selects ALL streams from the input
+    # -map -0:{idx} : The negative sign (-) tells FFmpeg to DESELECT this specific index
+    # -c copy     : Just re-wrap the remaining streams (no quality loss)
+    cmd = [
+        'ffmpeg', '-hide_banner',
+        '-i', input_file,
+        '-map', '0',
+        f'-map', f'-0:{idx}',
+        '-c', 'copy',
+        '-y', final_path
+    ]
+
+    print(f"\n🚀 Removing Stream {idx} and saving to: {out_name}...")
+    try:
+        subprocess.run(cmd, check=True)
+        print(f"\n[SUCCESS] Track removed! Saved to: {final_path}")
+    except subprocess.CalledProcessError:
+        print("\n[ERROR] FFmpeg failed. Some containers require at least one video track.")
+
 def run_conversion(input_file):
     clear_screen()
     print("--- CONVERSION ENGINE ---")
@@ -232,6 +288,7 @@ Supported formats include MKV, MP4, AVI, MOV, MP3, WAV, and more.
         print(" [2] STREAM EXTRACTION (Isolate Audio/Subs/Video)")
         print(" [3] ADD SUBTITLE TRACK (Mux SRT into Video)")
         print(" [4] CHANGE TITLE METADATA (No Re-encode)")
+        print(" [5] REMOVE TRACK (Delete Unwanted Audio/Subs)")
         print(" [Q] EXIT")
         
         mode = input("\nSELECT OPERATION: ").strip().lower()
@@ -254,6 +311,8 @@ Supported formats include MKV, MP4, AVI, MOV, MP3, WAV, and more.
                 out_name += ".mkv"
             output_path = os.path.join(os.path.dirname(path), out_name)
             change_title(path, output_path, new_title)
+        elif mode == "5":
+            remove_track(path, data)
         elif mode == "q":
             print("Exiting...")
         else:
