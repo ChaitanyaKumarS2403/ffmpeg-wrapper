@@ -157,6 +157,24 @@ def add_subtitle_track(video_file):
     except subprocess.CalledProcessError:
         print("\n[ERROR] Muxing failed. Some containers (like MP4) are picky about subtitle formats.")
 
+def change_title(input_file, output_file, new_title):
+    command = [
+        'ffmpeg',
+        '-y',               # Overwrite output if it exists
+        '-i', input_file,
+        '-map', '0',        # Keep all tracks/streams
+        '-c', 'copy',       # Fast copy, no re-encoding
+        '-metadata', f'title={new_title}',
+        output_file
+    ]
+    
+    # Run the command
+    try:
+        subprocess.run(command, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        print("Title updated successfully!")
+    except subprocess.CalledProcessError as e:
+        print(f"Error occurred: {e}")
+
 def run_conversion(input_file):
     clear_screen()
     print("--- CONVERSION ENGINE ---")
@@ -213,6 +231,7 @@ Supported formats include MKV, MP4, AVI, MOV, MP3, WAV, and more.
         print(" [1] FULL CONVERSION (Change Format/Codecs)")
         print(" [2] STREAM EXTRACTION (Isolate Audio/Subs/Video)")
         print(" [3] ADD SUBTITLE TRACK (Mux SRT into Video)")
+        print(" [4] CHANGE TITLE METADATA (No Re-encode)")
         print(" [Q] EXIT")
         
         mode = input("\nSELECT OPERATION: ").strip().lower()
@@ -223,6 +242,18 @@ Supported formats include MKV, MP4, AVI, MOV, MP3, WAV, and more.
             extract_track(path, data)
         elif mode == "3":
             add_subtitle_track(path)
+        elif mode == "4":
+            new_title = input("Enter new title for the media file: ").strip()
+            if not new_title:
+                print("No title entered. Returning to menu.")
+                return
+            out_name = input("Enter output filename (Default: titled_output.mkv): ").strip()
+            if not out_name:
+                out_name = "titled_output.mkv"
+            elif not out_name.lower().endswith(('.mkv', '.mp4')):
+                out_name += ".mkv"
+            output_path = os.path.join(os.path.dirname(path), out_name)
+            change_title(path, output_path, new_title)
         elif mode == "q":
             print("Exiting...")
         else:
