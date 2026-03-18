@@ -20,11 +20,10 @@ AUDIO_CODECS = {
     "4": ("Copy (No Re-encoding)", "copy")
 }
 
-# Updated Extension Map to handle Image Subtitles
 EXT_MAP = {
     'video': '.mp4',
     'audio': '.mp3',
-    'subtitle': '.srt' # Default, but we will override for PGS
+    'subtitle': '.srt'
 }
 
 def clear_screen():
@@ -65,13 +64,23 @@ def get_metadata(file_path):
     result = subprocess.run(cmd, capture_output=True, text=True)
     return json.loads(result.stdout)
 
+def get_destination_path(default_dir):
+    """Helper to ask for destination path. Defaults to source dir if blank."""
+    print(f"\n--- DESTINATION ---")
+    dest = input(f"Enter destination folder path (Leave blank for source folder): ").strip()
+    if not dest or not os.path.isdir(dest):
+        return default_dir
+    return dest
+
 def get_selection(menu_dict, title):
     print(f"\n--- {title.upper()} SELECTION ---")
     for key, (label, _) in menu_dict.items():
         print(f" [{key}] {label}")
     
     while True:
-        choice = input(f"\nSelect option (1-{len(menu_dict)}): ").strip()
+        choice = input(f"\nSelect option (1-{len(menu_dict)}) or 'B' to go back: ").strip().upper()
+        if choice == 'B':
+            return "BACK"
         if choice in menu_dict:
             return menu_dict[choice][1]
         print("Invalid entry. Please try again.")
@@ -87,7 +96,7 @@ def extract_track(input_file, metadata):
         lang = s.get('tags', {}).get('language', 'und')
         print(f" Stream {i:02d} | {s['codec_type'].upper():<10} | {codec:<10} | {lang}")
 
-    choice = input("\nEnter Stream Index or 'B': ").strip().upper()
+    choice = input("\nEnter Stream Index or 'B' to cancel: ").strip().upper()
     if choice == 'B': return
 
     try:
@@ -100,21 +109,21 @@ def extract_track(input_file, metadata):
     codec_name = selected_stream.get('codec_name', '')
     stream_type = selected_stream['codec_type']
 
-    # LOGIC FIX: Check for Image-based subtitles
     if codec_name in ['hdmv_pgs_subtitle', 'pgssub', 'dvdsub', 'dvd_subtitle']:
         req_ext = '.sup'
         print(f"NOTE: This is an IMAGE-based subtitle ({codec_name}). Using .sup extension.")
     else:
         req_ext = EXT_MAP.get(stream_type, '.mkv')
 
-    out_name = input(f"Enter output name (Extension {req_ext} added automatically): ").strip()
+    out_name = input(f"Enter output name (Extension {req_ext} added automatically) or 'B' to cancel: ").strip()
+    if out_name.upper() == 'B': return
     
     if not out_name: out_name = f"extracted_{idx}"
     if not out_name.lower().endswith(req_ext): out_name += req_ext
 
-    final_path = os.path.join(input_dir, out_name)
+    target_dir = get_destination_path(input_dir)
+    final_path = os.path.join(target_dir, out_name)
     
-    # Standard copy command
     cmd = ['ffmpeg', '-hide_banner', '-i', input_file, '-map', f'0:{idx}', '-c', 'copy', '-y', final_path]
     
     print(f"\nProcessing: {out_name}...")
@@ -123,11 +132,10 @@ def extract_track(input_file, metadata):
         print(f"\n[SUCCESS] File located at: {final_path}")
     except subprocess.CalledProcessError:
         print("\n[ERROR] FFmpeg failed. PGS subtitles cannot be saved as SRT.")
-        print("Try extracting as .sup or keeping it in an .mkv container.")
 
 def add_subtitle_track(video_file):
     print("\n--- SUBTITLE MUXING ENGINE ---")
-    print("Please select the Subtitle file (.srt, .ass, etc.)")
+    print("Please select the Subtitle file (.srt, .ass, etc.) [Cancel by closing file dialog]")
     sub_file = select_sub()
     
     if not sub_file:
@@ -135,21 +143,21 @@ def add_subtitle_track(video_file):
         return
 
     input_dir = os.path.dirname(video_file)
-    lang = input("Enter language code for this track (e.g., eng, hin, spa) [default: eng]: ").strip() or "eng"
-    out_name = input("Enter output filename (Default: video_with_subs.mkv): ").strip()
+    lang = input("Enter language code (e.g., eng, hin) [default: eng] or 'B' to cancel: ").strip()
+    if lang.upper() == 'B': return
+    if not lang: lang = "eng"
+
+    out_name = input("Enter output filename (Default: video_with_subs.mkv) or 'B' to cancel: ").strip()
+    if out_name.upper() == 'B': return
     
     if not out_name:
         out_name = "video_with_subs.mkv"
     if not out_name.lower().endswith(('.mkv', '.mp4')):
-        out_name += ".mkv" # MKV is more reliable for multiple tracks
+        out_name += ".mkv"
 
-    final_path = os.path.join(input_dir, out_name)
+    target_dir = get_destination_path(input_dir)
+    final_path = os.path.join(target_dir, out_name)
 
-    # The Command:
-    # -i video_file -i sub_file : Loads both files
-    # -map 0 : Takes all streams from the first file (video/audio)
-    # -map 1 : Takes the stream from the second file (subtitles)
-    # -c copy : No re-encoding, just 'copy' them into the new box
     cmd = [
         'ffmpeg', '-hide_banner', 
         '-i', video_file, 
@@ -165,22 +173,21 @@ def add_subtitle_track(video_file):
         subprocess.run(cmd, check=True)
         print(f"\n[SUCCESS] New track added! Saved to: {final_path}")
     except subprocess.CalledProcessError:
-        print("\n[ERROR] Muxing failed. Some containers (like MP4) are picky about subtitle formats.")
+        print("\n[ERROR] Muxing failed.")
 
 def change_title(input_file, output_file, new_title):
     command = [
         'ffmpeg',
-        '-y',               # Overwrite output if it exists
+        '-y',
         '-i', input_file,
-        '-map', '0',        # Keep all tracks/streams
-        '-c', 'copy',       # Fast copy, no re-encoding
+        '-map', '0',
+        '-c', 'copy',
         '-metadata', f'title={new_title}',
         output_file
     ]
     
-    # Run the command
     try:
-        subprocess.run(command, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        subprocess.run(command, check=True, creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == 'Windows' else 0)
         print("Title updated successfully!")
     except subprocess.CalledProcessError as e:
         print(f"Error occurred: {e}")
@@ -191,15 +198,12 @@ def remove_track(input_file, metadata):
     streams = metadata.get('streams', [])
     input_dir = os.path.dirname(input_file)
 
-    # 1. Display available tracks
     for i, s in enumerate(streams):
         codec = s.get('codec_name', 'unknown')
         lang = s.get('tags', {}).get('language', 'und')
         print(f" Stream {i:02d} | {s['codec_type'].upper():<10} | {codec:<10} | {lang}")
 
-    print("\n [B] Back to Menu")
-    choice = input("\nEnter Stream Index to REMOVE (or 'B'): ").strip().upper()
-    
+    choice = input("\nEnter Stream Index to REMOVE or 'B' to cancel: ").strip().upper()
     if choice == 'B': return
 
     try:
@@ -211,20 +215,18 @@ def remove_track(input_file, metadata):
         input("Press Enter to continue...")
         return
 
-    # 2. Setup Output Path
     original_ext = os.path.splitext(input_file)[1]
-    out_name = input(f"Enter output name (Default: cleaned_file{original_ext}): ").strip()
+    out_name = input(f"Enter output name (Default: cleaned_file{original_ext}) or 'B' to cancel: ").strip()
+    if out_name.upper() == 'B': return
+
     if not out_name:
         out_name = f"cleaned_file{original_ext}"
     if not out_name.lower().endswith(original_ext):
         out_name += original_ext
 
-    final_path = os.path.join(input_dir, out_name)
+    target_dir = get_destination_path(input_dir)
+    final_path = os.path.join(target_dir, out_name)
 
-    # 3. Construct Command
-    # -map 0      : Selects ALL streams from the input
-    # -map -0:{idx} : The negative sign (-) tells FFmpeg to DESELECT this specific index
-    # -c copy     : Just re-wrap the remaining streams (no quality loss)
     cmd = [
         'ffmpeg', '-hide_banner',
         '-i', input_file,
@@ -239,20 +241,27 @@ def remove_track(input_file, metadata):
         subprocess.run(cmd, check=True)
         print(f"\n[SUCCESS] Track removed! Saved to: {final_path}")
     except subprocess.CalledProcessError:
-        print("\n[ERROR] FFmpeg failed. Some containers require at least one video track.")
+        print("\n[ERROR] FFmpeg failed.")
 
 def run_conversion(input_file):
     clear_screen()
     print("--- CONVERSION ENGINE ---")
     input_dir = os.path.dirname(input_file)
-    v_codec = get_selection(VIDEO_CODECS, "Video Codec")
-    a_codec = get_selection(AUDIO_CODECS, "Audio Codec")
     
-    out_name = input("\nEnter target filename (e.g. final_video.mp4): ").strip()
+    v_codec = get_selection(VIDEO_CODECS, "Video Codec")
+    if v_codec == "BACK": return
+    
+    a_codec = get_selection(AUDIO_CODECS, "Audio Codec")
+    if a_codec == "BACK": return
+    
+    out_name = input("\nEnter target filename (e.g. final_video.mp4) or 'B' to cancel: ").strip()
+    if out_name.upper() == 'B': return
     if not out_name: out_name = "converted_output.mp4"
     if not "." in out_name: out_name += ".mp4"
 
-    final_path = os.path.join(input_dir, out_name)
+    target_dir = get_destination_path(input_dir)
+    final_path = os.path.join(target_dir, out_name)
+    
     cmd = ['ffmpeg', '-hide_banner', '-i', input_file, '-c:v', v_codec, '-c:a', a_codec, final_path]
     
     print(f"\nTranscoding: {out_name}...")
@@ -265,7 +274,6 @@ def run_conversion(input_file):
 def main():
     if not check_dependencies():
         print("CRITICAL ERROR: FFmpeg or FFprobe not found in system PATH.")
-        print("Please install FFmpeg and ensure it's added to your PATH environment variable.")
         return
 
     clear_screen()
@@ -311,21 +319,22 @@ Supported formats include MKV, MP4, AVI, MOV, MP3, WAV, and more.
         elif mode == "3":
             add_subtitle_track(path)
         elif mode == "4":
-            new_title = input("Enter new title for the media file: ").strip()
-            if not new_title:
-                print("No title entered. Returning to menu.")
-                return
-            out_name = input("Enter output filename (Default: titled_output.mkv): ").strip()
-            if not out_name:
-                out_name = "titled_output.mkv"
-            elif not out_name.lower().endswith(('.mkv', '.mp4')):
-                out_name += ".mkv"
-            output_path = os.path.join(os.path.dirname(path), out_name)
-            change_title(path, output_path, new_title)
+            new_title = input("Enter new title or 'B' to cancel: ").strip()
+            if new_title.upper() == 'B' or not new_title:
+                print("Action cancelled.")
+            else:
+                out_name = input("Enter output filename (Default: titled_output.mkv) or 'B' to cancel: ").strip()
+                if out_name.upper() != 'B':
+                    if not out_name: out_name = "titled_output.mkv"
+                    elif not out_name.lower().endswith(('.mkv', '.mp4')): out_name += ".mkv"
+                    
+                    target_dir = get_destination_path(os.path.dirname(path))
+                    output_path = os.path.join(target_dir, out_name)
+                    change_title(path, output_path, new_title)
         elif mode == "5":
             remove_track(path, data)
         elif mode == "q":
-            print("Exiting...")
+            print("Exiting..."); return
         else:
             print("Invalid selection.")
             
@@ -333,7 +342,7 @@ Supported formats include MKV, MP4, AVI, MOV, MP3, WAV, and more.
         print(f"\n[SYSTEM ERROR] {e}")
     
     input("\nPress Enter to continue...")
-    main()  # Restart the program for another operation
+    main()
 
 if __name__ == "__main__":
     main()
