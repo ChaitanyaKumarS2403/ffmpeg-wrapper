@@ -1,4 +1,4 @@
-# FFmpeg Wrapper
+# <img src="https://github.com/ChaitanyaKumarS2403/assets/blob/main/general/image_assets/ffmpeg-wrapper.png" height=35> FFmpeg Wrapper
 
 This tool is a CLI-wrapper for the FFmpeg module that let's you convert the CODECs and manage various tracks of a media file.
 Simply choose between the options you would like to perform on your media file in the tool, and get your job done hassle-free.
