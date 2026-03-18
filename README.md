@@ -5,6 +5,8 @@ Simply choose between the options you would like to perform on your media file i
 
 ## Download the application for Windows
 
-Download the application for Windows now! Click on the link below to get the application for your Windows.
+Download the application for Windows now! Click on the banner below to get the application for your Windows.
 
-[Get it Now!](https://github.com/ChaitanyaKumarS2403/ffmpeg-wrapper/releases/download/v1.0.0.0/FFmpeg.Wrapper.exe)
+<a href="https://github.com/ChaitanyaKumarS2403/ffmpeg-wrapper/releases/download/v1.0.0.0/FFmpeg.Wrapper.exe">
+  <img src="https://github.com/ChaitanyaKumarS2403/assets/blob/main/projects_repo/ffmpeg-wrapper/ffmpeg-wrapper.png">
+</a>
